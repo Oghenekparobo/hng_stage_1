@@ -1,5 +1,5 @@
 #!/bin/sh
-# deploy.sh - Automates deployment of a Dockerized application
+
 
 # Initialize logging
 LOGFILE="deploy_$(date +%Y%m%d_%H%M%S).log"
@@ -16,6 +16,37 @@ error_exit() {
 
 # Trap unexpected errors
 trap 'error_exit "Script terminated unexpectedly at line $LINENO"' ERR
+
+# GitHub URL validation function
+validate_github_url() {
+    local url="$1"
+    
+  
+    if ! echo "$url" | grep -qE '^https://github\.com/[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+/?$'; then
+        return 1
+    fi
+    
+    # Extract owner and repo name
+    local owner_repo=$(echo "$url" | sed -n 's|^https://github\.com/\([^/]*\)/\([^/]*\).*|\1/\2|p' | sed 's|\.git$||')
+    
+    # Verify repository exists using GitHub API
+    log "Verifying GitHub repository exists..."
+    local http_code=$(curl -s -o /dev/null -w "%{http_code}" "https://api.github.com/repos/$owner_repo")
+    
+    if [ "$http_code" = "200" ]; then
+        log "Repository verified successfully"
+        return 0
+    elif [ "$http_code" = "404" ]; then
+        log "ERROR: Repository not found on GitHub"
+        return 1
+    elif [ "$http_code" = "403" ]; then
+        log "WARNING: GitHub API rate limit reached, skipping verification"
+        return 0
+    else
+        log "WARNING: Could not verify repository (HTTP $http_code), proceeding anyway"
+        return 0
+    fi
+}
 
 # Check for cleanup flag
 if [ "$1" = "--cleanup" ]; then
@@ -44,8 +75,23 @@ fi
 
 # Collect and validate user input
 log "Collecting user input..."
-read -p "Enter Git Repository URL (e.g., https://github.com/hng/docker-http-server): " GIT_URL
-[ -z "$GIT_URL" ] && error_exit "Git Repository URL is required"
+
+# GitHub URL validation with retry
+while true; do
+    read -p "Enter Git Repository URL (e.g., https://github.com/hng/docker-http-server): " GIT_URL
+    [ -z "$GIT_URL" ] && error_exit "Git Repository URL is required"
+    
+    if validate_github_url "$GIT_URL"; then
+        break
+    else
+        echo "ERROR: Invalid GitHub repository URL. Please use format: https://github.com/owner/repo"
+        read -p "Would you like to try again? (y/n): " retry
+        if [ "$retry" != "y" ] && [ "$retry" != "Y" ]; then
+            error_exit "Invalid GitHub URL provided"
+        fi
+    fi
+done
+
 read -p "Enter Personal Access Token: " GIT_PAT
 [ -z "$GIT_PAT" ] && error_exit "Personal Access Token is required"
 read -p "Enter branch name (default: main): " GIT_BRANCH
