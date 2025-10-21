@@ -37,14 +37,14 @@ if [ "$1" = "--cleanup" ]; then
         systemctl reload nginx || true
         log "Cleanup completed"
         exit 0
-    EOF
+EOF
     log "Cleanup completed successfully"
     exit 0
 fi
 
 # Collect and validate user input
 log "Collecting user input..."
-read -p "Enter Git Repository URL (e.g., https://github.com/mendhak/docker-http-server): " GIT_URL
+read -p "Enter Git Repository URL (e.g., https://github.com/hng/docker-http-server): " GIT_URL
 [ -z "$GIT_URL" ] && error_exit "Git Repository URL is required"
 read -p "Enter Personal Access Token: " GIT_PAT
 [ -z "$GIT_PAT" ] && error_exit "Personal Access Token is required"
@@ -115,7 +115,7 @@ EOF
 log "Deploying application to $VPS_IP..."
 scp -i "$SSH_KEY" -r "$REPO_NAME" "$SSH_USER@$VPS_IP:/home/$SSH_USER/$REPO_NAME" || error_exit "Failed to transfer files"
 ssh -i "$SSH_KEY" "$SSH_USER@$VPS_IP" << EOF || error_exit "Failed to deploy application"
-    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> /root/deploy.log; echo "$1"; }
+    log() { echo "\$(date '+%Y-%m-%d %H:%M:%S') - \$1" >> /root/deploy.log; echo "\$1"; }
     if [ -d "/home/$SSH_USER/$REPO_NAME" ]; then
         cd "/home/$SSH_USER/$REPO_NAME" || exit 1
         if [ -f "docker-compose.yml" ]; then
@@ -145,7 +145,7 @@ EOF
 # Configure Nginx
 log "Configuring Nginx on $VPS_IP..."
 ssh -i "$SSH_KEY" "$SSH_USER@$VPS_IP" << EOF || error_exit "Failed to configure Nginx"
-    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> /root/deploy.log; echo "$1"; }
+    log() { echo "\$(date '+%Y-%m-%d %H:%M:%S') - \$1" >> /root/deploy.log; echo "\$1"; }
     cat > /etc/nginx/sites-available/$REPO_NAME << 'NGINX_CONF'
 server {
     listen 80;
@@ -167,7 +167,7 @@ EOF
 
 # Validate deployment
 log "Validating deployment..."
-ssh -i "$SSH_KEY" "$SSH_USER@$VPS_IP" << EOF || error_exit "Failed to validate deployment"
+ssh -i "$SSH_KEY" "$SSH_USER@$VPS_IP" << 'EOF' || error_exit "Failed to validate deployment"
     log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> /root/deploy.log; echo "$1"; }
     if systemctl is-active docker >/dev/null; then
         log "Docker service is running"
